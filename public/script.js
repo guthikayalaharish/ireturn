@@ -1,3 +1,7 @@
+// Initialize item ID for unique identification
+let itemId = 0; 
+let totalreturned = 0; // Track total returned items
+
 // Function to toggle forms for Add, Search, and User Search
 document.getElementById('showAddForm').addEventListener('click', function() {
     document.getElementById('add-things-form').style.display = 'block';
@@ -11,19 +15,19 @@ document.getElementById('showSearchForm').addEventListener('click', function() {
     document.getElementById('user-search-form').style.display = 'none';
 });
 
-let totalreturned = 0;
 document.getElementById('showUserSearchForm').addEventListener('click', function() {
     document.getElementById('add-things-form').style.display = 'none';
     document.getElementById('search-things-form').style.display = 'none';
     document.getElementById('user-search-form').style.display = 'block';
+    displayUserDashboard(); // Call to display user items and claims in the dashboard
 });
 
 // Handle form submissions for adding items
 document.getElementById('addForm').onsubmit = async (e) => {
     e.preventDefault();
 
-    const formData = new FormData();
     const item = {
+        id: itemId++, // Assign a unique ID to each item
         name: document.getElementById('name').value,
         contact: document.getElementById('contact').value,
         country: document.getElementById('country').value,
@@ -31,7 +35,8 @@ document.getElementById('addForm').onsubmit = async (e) => {
         city: document.getElementById('city').value,
         category: document.getElementById('category').value,
         thingName: document.getElementById('thingName').value,
-        image: URL.createObjectURL(document.getElementById('imageUpload').files[0]) // Local preview
+        image: URL.createObjectURL(document.getElementById('imageUpload').files[0]),
+        claims: [] // Initialize claims array
     };
 
     let storedItems = JSON.parse(localStorage.getItem('items')) || [];
@@ -40,8 +45,6 @@ document.getElementById('addForm').onsubmit = async (e) => {
 
     alert('Item added successfully!');
     document.getElementById('addForm').reset();
-
-    // Update total count of items
     updateTotalItems();
 };
 
@@ -56,7 +59,7 @@ window.onload = function() {
     updateTotalItems();
 };
 
-// Handle search functionality for everyone
+// Handle search functionality
 document.getElementById('searchForm').onsubmit = async (e) => {
     e.preventDefault();
 
@@ -110,11 +113,11 @@ document.getElementById('searchForm').onsubmit = async (e) => {
             card.appendChild(city);
 
             const name = document.createElement('p');
-            name.textContent = result.name;
+            name.textContent = "found to: " +`${result.name}`;
             card.appendChild(name);
 
             const contact = document.createElement('p');
-            contact.textContent = result.contact;
+            contact.textContent = "contact no: "+result.contact;
             card.appendChild(contact);
 
             // Add Claim button
@@ -125,47 +128,26 @@ document.getElementById('searchForm').onsubmit = async (e) => {
                 const claimantContact = prompt('Enter your mobile number:');
                 
                 if (claimantName && claimantContact) {
-                    alert('Request sent to helper!');
-
-                    // Save the claim request
-                    const claimRequest = {
-                        item: result.thingName,
-                        ownerName: result.name,
-                        ownerContact: result.contact,
-                        claimantName,
-                        claimantContact
-                    };
-
-                    // Store claims in localStorage
-                    let claims = JSON.parse(localStorage.getItem('claims')) || {};
-                    claims[result.thingName] = claimRequest; // Use item name as key
-                    localStorage.setItem('claims', JSON.stringify(claims));
-
-                    // Display the claim request below the respective item
-                    displayClaimRequest(card, claimRequest);
-                } else {
-                    alert('Claim request was not completed.');
+                    const claimRequest = { name: claimantName, contact: claimantContact };
+                    // Store claim request in localStorage
+                    const itemIndex = storedItems.findIndex(item => item.id === result.id);
+                    if (itemIndex !== -1) {
+                        storedItems[itemIndex].claims.push(claimRequest);
+                        localStorage.setItem('items', JSON.stringify(storedItems));
+                        alert('Request sent to helper!');
+                    }
                 }
             };
             card.appendChild(claimButton);
 
             resultContainer.appendChild(card);
+            resultContainer.classList.add("cardsprop")
         });
     }
 };
 
-// Function to display the claim request below the respective item
-function displayClaimRequest(card, claimRequest) {
-    const claimInfo = document.createElement('div');
-    claimInfo.className = 'claim-info';
-    claimInfo.textContent = `${claimRequest.claimantName} (Contact: ${claimRequest.claimantContact}) has requested to claim this item.`;
-    card.appendChild(claimInfo);
-}
-
-// Handle user search functionality based on contact number
-document.getElementById('userSearchForm').onsubmit = function(e) {
-    e.preventDefault();
-
+// Display user items and claims in the dashboard
+function displayUserDashboard() {
     const userContact = document.getElementById('user-contact').value;
     const storedItems = JSON.parse(localStorage.getItem('items')) || [];
     const userItems = storedItems.filter(item => item.contact === userContact);
@@ -190,44 +172,58 @@ document.getElementById('userSearchForm').onsubmit = function(e) {
             thingName.textContent = item.thingName;
             card.appendChild(thingName);
 
+            const claimsHeading = document.createElement('h4');
+            claimsHeading.textContent = 'Claim Requests:';
+            card.appendChild(claimsHeading);
+
+            // Display claim requests
+            if (item.claims.length === 0) {
+                const noClaims = document.createElement('p');
+                noClaims.textContent = 'No claims for this item.';
+                card.appendChild(noClaims);
+            } else {
+                item.claims.forEach(claim => {
+                    const claimItem = document.createElement('p');
+                    claimItem.textContent = `Name: ${claim.name} requested for claim, Contact: ${claim.contact}`;
+                    claimItem.style.color="red"
+                    card.appendChild(claimItem);
+                });
+            }
+
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Return';
             deleteButton.addEventListener('click', function() {
-                totalreturned += 1;
-                document.getElementById('tr').textContent = `Total Items Returned: ${totalreturned}`;
-
-                storedItems.splice(storedItems.indexOf(item), 1);
-                localStorage.setItem('items', JSON.stringify(storedItems));
-                updateTotalItems();
-                document.getElementById('userSearchForm').onsubmit(e); // Refresh user search results
+                deleteItem(item.id); // Call deleteItem with the item's ID
             });
             card.appendChild(deleteButton);
-
-            // Check if there are any claims for this item
-            const claims = JSON.parse(localStorage.getItem('claims')) || {};
-            if (claims[item.thingName]) {
-                displayClaimRequest(card, claims[item.thingName]);
-            }
 
             resultContainer.appendChild(card);
         });
     }
+}
+
+// Delete item function
+function deleteItem(itemId) {
+    const storedItems = JSON.parse(localStorage.getItem('items')) || [];
+    
+    // Filter out the item with the matching ID
+    const updatedItems = storedItems.filter(storedItem => storedItem.id !== itemId);
+    localStorage.setItem('items', JSON.stringify(updatedItems));
+
+    // Increment total items returned
+    totalreturned += 1;
+    document.getElementById('tr').textContent = `Total Items Returned: ${totalreturned}`;
+
+    // Update total items added
+    updateTotalItems();
+
+    // Refresh user search results after deletion
+    displayUserDashboard(); // Re-display the dashboard to show updated items
+}
+
+// Handle user dashboard form submission
+document.getElementById('userSearchForm').onsubmit = function(e) {
+    e.preventDefault();
+    displayUserDashboard(); // Show user items based on contact
 };
 
-// Function to update the user search results with claims
-function updateUserSearchResults() {
-    const claims = JSON.parse(localStorage.getItem('claims')) || {};
-    const resultContainer = document.getElementById('user-search-results');
-    resultContainer.innerHTML += '<h3>Claims Requested:</h3>'; // Header for claims
-
-    if (Object.keys(claims).length === 0) {
-        resultContainer.innerHTML += '<p>No claims requested.</p>';
-    } else {
-        for (const claimKey in claims) {
-            const claim = claims[claimKey];
-            const claimMessage = document.createElement('p');
-            claimMessage.textContent = `${claim.claimantName} (Contact: ${claim.claimantContact}) requested to claim "${claim.item}" from ${claim.ownerName} (Contact: ${claim.ownerContact})`;
-            resultContainer.appendChild(claimMessage);
-        }
-    }
-}
