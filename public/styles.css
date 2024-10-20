@@ -64,7 +64,7 @@ label {
 }
 
 input[type="text"], select, input[type="file"] {
-    width: 30%;
+    width: 100%;
     padding: 8px;
     margin-bottom: 10px;
     border: 1px solid #ccc;
